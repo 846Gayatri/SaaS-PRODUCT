@@ -41,6 +41,7 @@ export default function DashboardClient({ user, usageCount: initialUsage, initia
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
   
   const [reviews, setReviews] = useState<any[]>(initialReviews);
   const [usageCount, setUsageCount] = useState(initialUsage);
@@ -71,6 +72,37 @@ export default function DashboardClient({ user, usageCount: initialUsage, initia
       }
     } catch (err) {
       console.error('Logout failed:', err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileLoading(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to extract text from file');
+      }
+      
+      setResumeText(data.text);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Error processing document.');
+    } finally {
+      setFileLoading(false);
+      e.target.value = '';
     }
   };
 
@@ -484,16 +516,33 @@ export default function DashboardClient({ user, usageCount: initialUsage, initia
                       <div className="grid md:grid-cols-2 gap-6">
                         {/* Resume Text */}
                         <div>
-                          <label className="block text-sm font-semibold text-slate-300 mb-2">
-                            Resume Content
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-semibold text-slate-300">
+                              Resume Content
+                            </label>
+                            <label className={`cursor-pointer text-xs font-bold flex items-center gap-1 px-2 py-1 rounded transition-colors ${fileLoading ? 'text-slate-400 bg-slate-800' : 'text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'}`}>
+                              {fileLoading ? (
+                                <div className="w-3 h-3 border-2 border-slate-500 border-t-slate-300 rounded-full animate-spin" />
+                              ) : (
+                                <FileText className="w-3.5 h-3.5" />
+                              )}
+                              <span>{fileLoading ? 'Extracting...' : 'Upload PDF/TXT'}</span>
+                              <input 
+                                type="file" 
+                                accept=".pdf,.txt,.md" 
+                                className="hidden" 
+                                onChange={handleFileUpload} 
+                                disabled={fileLoading || (user.role === 'free' && usageCount >= 3)}
+                              />
+                            </label>
+                          </div>
                           <textarea
                             required
                             value={resumeText}
                             onChange={(e) => setResumeText(e.target.value)}
-                            placeholder="Paste your plain text resume here... Include contact info, work experiences, skills, and education."
+                            placeholder="Upload a PDF/TXT or paste your plain text resume here..."
                             rows={12}
-                            disabled={loading || (user.role === 'free' && usageCount >= 3)}
+                            disabled={loading || fileLoading || (user.role === 'free' && usageCount >= 3)}
                             className="block w-full p-4 bg-slate-950/50 border border-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-slate-200 placeholder-slate-600 transition-all outline-none resize-none text-sm"
                           />
                         </div>
