@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-const pdfParse = require('pdf-parse');
+import PDFParser from 'pdf2json';
 
 export async function POST(req: Request) {
   try {
@@ -11,8 +11,16 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(arrayBuffer);
     
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-      const pdfData = await pdfParse(buffer);
-      return NextResponse.json({ text: pdfData.text });
+      const text = await new Promise((resolve, reject) => {
+        const pdfParser = new PDFParser(null, true);
+        pdfParser.on('pdfParser_dataError', (errData: any) => reject(errData.parserError));
+        pdfParser.on('pdfParser_dataReady', () => {
+          resolve(pdfParser.getRawTextContent());
+        });
+        pdfParser.parseBuffer(buffer);
+      });
+      
+      return NextResponse.json({ text });
     } else {
       // Just return as text for .txt, .md, etc
       const text = buffer.toString('utf-8');
